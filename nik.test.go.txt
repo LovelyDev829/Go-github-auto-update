@@ -1,0 +1,138 @@
+package main
+
+import (
+	"crypto"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/pem"
+	"flag"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/blang/semver/v4"
+	"github.com/rhysd/go-github-selfupdate/selfupdate"
+)
+
+const (
+	repoOwner      = "your_repo_owner"
+	repoName       = "your_repo_name"
+)
+
+var (
+	autoUpdateEnabled = true
+	publicKeyPath     = "public_key.pem" // Path to your public key file
+)
+
+func main() {
+	// Command-line flags
+	autoUpdate := flag.Bool("auto-update", true, "Enable auto-update")
+	flag.Parse()
+	autoUpdateEnabled = *autoUpdate
+
+	// Start monitoring for updates
+	go monitorUpdates()
+
+	// Start REST API server
+	http.HandleFunc("/update", handleUpdate)
+	http.HandleFunc("/status", handleStatus)
+	http.HandleFunc("/toggle-auto-update", handleToggleAutoUpdate)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "Welcome to the update monitor server.")
+	})
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func monitorUpdates() {
+	for {
+		if autoUpdateEnabled {
+			err := selfUpdate()
+			if err != nil {
+				log.Println("Error updating:", err)
+			}
+		}
+		time.Sleep(1 * time.Hour) // Check for updates every hour
+	}
+}
+
+func selfUpdate() error {
+    versionStr := "1.0.0"
+    version, err := semver.ParseTolerant(versionStr)
+    if err != nil {
+        return fmt.Errorf("error parsing version: %v", err)
+    }
+
+    // Ensure the selfupdate package you are using is compatible with semver v4.
+    latest, found, err := selfupdate.UpdateSelf(version, repoOwner+"/"+repoName)
+    if err != nil {
+        return err
+    }
+
+    if !found || version.Equals(latest.Version) {
+        log.Println("No updates available.")
+    } else {
+        log.Println("Updated to version:", latest.Version)
+    }
+    return nil
+}
+
+
+func handleUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if err := selfUpdate(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Fprintf(w, "Update successful")
+}
+
+func handleStatus(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Current version: %s\nAuto-update enabled: %v", "1.0.0", autoUpdateEnabled)
+}
+
+func handleToggleAutoUpdate(w http.ResponseWriter, r *http.Request) {
+	autoUpdateEnabled = !autoUpdateEnabled
+	fmt.Fprintf(w, "Auto-update set to: %v", autoUpdateEnabled)
+}
+
+func verifySignature(data []byte, signature []byte) error {
+	// Load public key
+	keyData, err := ioutil.ReadFile(publicKeyPath)
+	if err != nil {
+		return err
+	}
+
+	// Decode the PEM block
+	block, _ := pem.Decode(keyData)
+	if block == nil {
+		return fmt.Errorf("failed to parse PEM block containing the key")
+	}
+
+	// Parse the RSA public key
+	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return err
+	}
+
+	rsaPubKey, ok := pubKey.(*rsa.PublicKey)
+	if !ok {
+		return fmt.Errorf("key is not an RSA public key")
+	}
+
+	// Verify signature
+	hashed := sha256.Sum256(data)
+	err = rsa.VerifyPKCS1v15(rsaPubKey, crypto.SHA256, hashed[:], signature)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
