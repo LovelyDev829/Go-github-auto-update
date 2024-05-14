@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	repoPath = "../2_Cloning/Three.js-my-room/" // Modify this path to the location of your local repo
+	repoPath = "../nik-hello-world/" // Modify this path to the location of your local repo
 )
 
 func main() {
