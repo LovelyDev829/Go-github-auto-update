@@ -8,16 +8,20 @@
 
    ```bash
    [Unit]
-   Description=Nik Service
+   Description=Go Github Auto Update Service
    After=network.target
 
    [Service]
-   ExecStart=/home/Lovely/Go-github-auto-update/nik
-   Restart=always
-   User=Lovely
+   Type=simple
+   User=jsguru
+   WorkingDirectory=/home/jsguru/Documents/Lovely/Go-github-auto-update
+   ExecStart=/home/jsguru/Documents/Lovely/Go-github-auto-update/nik
+   StandardOutput=append:/var/log/nik.log
+   StandardError=inherit
 
    [Install]
    WantedBy=multi-user.target
+
 
    sudo systemctl daemon-reload
    ```
@@ -38,4 +42,8 @@
 7. **Enable the service to start automatically on system boot:**
    ```bash
    sudo systemctl enable nik.service
+   ```
+8. **Check log:**
+   ```bash
+   cat /var/log/nik.log
    ```
