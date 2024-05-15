@@ -10,7 +10,7 @@ import (
 
 const (
 	repoPath    = "../nik-hello-world/" // Modify this path to the location of your local repo
-	execCommand = repoPath + "hello-world.exe"   // Command to run after git pull
+	execCommand = repoPath + "hello-world.exe" // Command to run after git pull
 )
 
 const (
@@ -20,11 +20,11 @@ const (
 	Yellow = "\033[33m"
 )
 
+var failedCommit string // Store the hash of the last failed commit
+
 func main() {
 	ticker := time.NewTicker(2 * time.Second) // Check for updates once every 2 seconds
 	defer ticker.Stop()
-
-	var prevCommitHash string
 
 	for range ticker.C {
 		// Print current time
@@ -53,29 +53,23 @@ func main() {
 				if err != nil {
 					fmt.Printf("%sError running command: %s%s\n", Red, err, Reset)
 
-					// Revert to the previous commit
-					if prevCommitHash != "" {
-						err := gitReset(repoPath, prevCommitHash)
-						if err != nil {
-							fmt.Printf("%sError reverting to the previous commit: %s%s\n", Red, err, Reset)
-						} else {
-							fmt.Printf("%sReverted to the previous commit successfully.%s\n", Yellow, Reset)
-						}
-					} else {
-						fmt.Printf("%sNo previous commit to revert to.%s\n", Red, Reset)
-					}
+					// Remember the failed commit
+					failedCommit = getCurrentCommit(repoPath)
 				} else {
 					fmt.Printf("%sCommand executed successfully. %s\n", Yellow, Reset)
 				}
 			}
 		} else {
 			fmt.Println("No changes in the repository or the branch is up to date.")
-		}
 
-		// Update prevCommitHash
-		prevCommitHash, err = getCurrentCommit(repoPath)
-		if err != nil {
-			fmt.Printf("%sError getting current commit hash: %s%s\n", Red, err, Reset)
+			// If the failed commit is detected as a change, skip pulling
+			if failedCommit != "" {
+				currentCommit := getCurrentCommit(repoPath)
+				if currentCommit == failedCommit {
+					fmt.Printf("%sSkipping pull as the failed commit is detected as a change.%s\n", Yellow, Reset)
+					continue
+				}
+			}
 		}
 	}
 }
@@ -116,21 +110,12 @@ func runCommand(command string) error {
 	return cmd.Run()
 }
 
-func getCurrentCommit(repoDir string) (string, error) {
+func getCurrentCommit(repoDir string) string {
 	cmd := exec.Command("git", "rev-parse", "HEAD")
 	cmd.Dir = repoDir
 	output, err := cmd.Output()
 	if err != nil {
-		return "", err
+		return ""
 	}
-	return strings.TrimSpace(string(output)), nil
-}
-
-func gitReset(repoDir, commitHash string) error {
-	cmd := exec.Command("git", "reset", "--hard", commitHash)
-	cmd.Dir = repoDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
+	return strings.TrimSpace(string(output))
 }
