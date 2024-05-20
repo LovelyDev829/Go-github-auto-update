@@ -1,12 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	nethttp "net/http"
 	getonlinecommit "nik/package"
 	globalvar "nik/package"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 
 	"gopkg.in/src-d/go-git.v4"
@@ -24,6 +27,12 @@ const (
 	successHashFile = "LastSuccessCommitHash.txt"
 	failedHashFile = "LastFailedCommitHash.txt"
 )
+
+var (
+    supperFlag bool
+    mutex      sync.Mutex
+)
+
 const (
 	Reset  = "\033[0m"
 	Green  = "\033[32m"
@@ -31,13 +40,17 @@ const (
 	Yellow = "\033[33m"
 )
 
-func main() {
+func run_circle() {
 	ticker := time.NewTicker(interval) // Check for updates once every 2 seconds
 	defer ticker.Stop()
 
 	for range ticker.C {
 		// Print current time
 		fmt.Printf("%s----------------------------------------------------------------%s\n", Green, Reset)
+		if !supperFlag {
+			fmt.Printf("%sSupperFlag is turned off. you can turn it on at /update-supper-flag.%s\n", Red, Reset)
+			continue
+		}
 		fmt.Printf("%sChecking Updates on Github at: %s%s\n", Green, time.Now().Format(time.RFC3339), Reset)
 
 		// Check for changes in the repository
@@ -255,3 +268,64 @@ func revert(commitSHA string) error {
 
 	return nil
 }
+
+//api-------------------------------------------
+// Handler to get the current value of supperFlag
+func getFlagHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
+    mutex.Lock()
+    defer mutex.Unlock()
+
+    response := map[string]bool{"supperFlag": supperFlag}
+    jsonResponse, err := json.Marshal(response)
+    if err != nil {
+        nethttp.Error(w, "Error generating response", nethttp.StatusInternalServerError)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    w.Write(jsonResponse)
+}
+
+// Handler to update the value of supperFlag
+func updateFlagHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
+    if r.Method != nethttp.MethodPost {
+        nethttp.Error(w, "Invalid request method", nethttp.StatusMethodNotAllowed)
+        return
+    }
+
+    var request struct {
+        SupperFlag bool `json:"supperFlag"`
+    }
+
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&request)
+    if err != nil {
+        nethttp.Error(w, "Invalid request body", nethttp.StatusBadRequest)
+        return
+    }
+
+    mutex.Lock()
+    supperFlag = request.SupperFlag
+    mutex.Unlock()
+
+    w.WriteHeader(nethttp.StatusOK)
+    fmt.Fprintf(w, "SupperFlag updated to %v", supperFlag)
+}
+
+func main() {
+    // Start the goroutine to print the time every 3 seconds
+	supperFlag = true
+    go run_circle()
+
+    nethttp.HandleFunc("/get-supper-flag", getFlagHandler)
+    nethttp.HandleFunc("/update-supper-flag", updateFlagHandler)
+
+    fmt.Printf("%sStarting server at port 8080%s\n", Yellow, Reset)
+    if err := nethttp.ListenAndServe(":8080", nil); err != nil {
+        fmt.Printf("%sError starting server: %s%s\n", Red, err, Reset)
+    }
+}
+
+
+
+
