@@ -1,0 +1,44 @@
+package main
+
+import (
+	"fmt"
+	"os"
+
+	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/transport/http"
+)
+
+
+const (
+	owner = "LovelyDev829"
+	branch = "nik-hello-world"
+	urlfmt = "https://github.com/%s/%s"
+	directory = "../clone"
+	accessToken = "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"
+)
+
+
+func clone_private_repo(owner string, branch string, urlfmt string, directory string, accessToken string) {
+   // Clone the repository
+
+   url := fmt.Sprintf(urlfmt, owner, branch)
+   _, err := git.PlainClone(directory, false, &git.CloneOptions{
+	URL: url,
+	Auth: &http.BasicAuth{
+		Username: owner, // Can be anything except an empty string
+		Password: accessToken,
+	},
+})
+if err != nil {
+	fmt.Println("Error cloning repository:", err)
+	os.Exit(1)
+}
+fmt.Println("Repository cloned successfully to", directory)
+}
+
+func main() {
+    // Replace with your GitHub username, repository name, and access token
+
+    // Directory where the repository will be cloned
+	clone_private_repo(owner, branch, urlfmt, directory, accessToken)
+}
