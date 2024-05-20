@@ -1,0 +1,79 @@
+package main
+
+import (
+	"fmt"
+	"log"
+
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
+)
+
+// cloneOrOpenRepo tries to open the repository from a given directory.
+// If it fails to open, it will attempt to clone from the specified URL.
+func cloneOrOpenRepo(directory, url, username, token string) (*git.Repository, error) {
+    // Try to open the repo
+    repo, err := git.PlainOpen(directory)
+    if err == nil {
+        return repo, nil
+    }
+
+    // Repo does not exist, so clone it
+    repo, err = git.PlainClone(directory, false, &git.CloneOptions{
+        URL: url,
+        Auth: &http.BasicAuth{
+            Username: username, // This can be anything when using personal access tokens
+            Password: token,
+        },
+    })
+    if err != nil {
+        return nil, fmt.Errorf("failed to clone the repository: %w", err)
+    }
+    return repo, nil
+}
+
+// checkoutCommit checks out the specified commit in the given repository.
+func checkoutCommit(repo *git.Repository, commitSHA string) error {
+    // Parse the commit hash
+    hash := plumbing.NewHash(commitSHA)
+    w, err := repo.Worktree()
+    if err != nil {
+        return fmt.Errorf("could not get worktree: %w", err)
+    }
+
+    // Checkout the commit
+    err = w.Checkout(&git.CheckoutOptions{
+        Hash: hash,
+    })
+    if err != nil {
+        return fmt.Errorf("could not checkout: %w", err)
+    }
+    return nil
+}
+
+func main() {
+    const (
+        owner       = "LovelyDev829"
+        repository  = "nik-hello-world"
+        accessToken = "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"
+        commitSHA   = "9a7a3d5e939f0c1b01fabd3598cfbee6ce75cff9"
+		// commitSHA   = "23d16181ecebde861c1197d31d5d38648617e6db"
+        directory   = "./local-repo-dir"
+    )
+
+    repoURL := fmt.Sprintf("https://github.com/%s/%s.git", owner, repository)
+
+    // Clone or open the repository
+    repo, err := cloneOrOpenRepo(directory, repoURL, "x-access-token", accessToken)
+    if err != nil {
+        log.Fatalf("Error while cloning/opening repository: %v", err)
+    }
+
+    // Checkout the specific commit
+    err = checkoutCommit(repo, commitSHA)
+    if err != nil {
+        log.Fatalf("Error while checking out commit: %v", err)
+    }
+
+    fmt.Println("Successfully checked out commit:", commitSHA)
+}
