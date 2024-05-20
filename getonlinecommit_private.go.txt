@@ -22,13 +22,15 @@ type Commit struct {
 	SHA string `json:"sha"`
 }
 
-func fetchCommits(owner, repo, userAgent string) ([]Commit, error) {
+
+func fetchCommits(owner, repo, token, userAgent string) ([]Commit, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/commits", owner, repo)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Authorization", "token "+token)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -46,20 +48,19 @@ func fetchCommits(owner, repo, userAgent string) ([]Commit, error) {
 	return commits, nil
 }
 
-func Get(owner string, repo string) (string, error) {
+func Get(owner string, repo string, token string) string {
 	userAgent := "StackOverflow-29845346"
 
 	// Fetch commits and store SHAs in an array
-	commits, err := fetchCommits(owner, repo, userAgent)
+	commits, err := fetchCommits(owner, repo, token, userAgent)
 	if err != nil {
 		// fmt.Println("Error fetching commits:", err)
-		return "", err
+		return err.Error()
 	}
-
-	if len(commits) == 0 {
-		return "", fmt.Errorf("no commits found")
+	// Create a slice to store commit SHAs
+	var commitSHAs []string
+	for _, commit := range commits {
+		commitSHAs = append(commitSHAs, commit.SHA)
 	}
-
-	// Return the SHA of the latest commit
-	return commits[0].SHA, nil
+	return commitSHAs[0]
 }

@@ -174,8 +174,6 @@ func pull_repo() (error) {
 			fmt.Println("Error pulling repository:", err)
 		}
 		return err
-	} else{
-		fmt.Println("Repository pulled successfully")
 	}
 
 	return nil
@@ -325,7 +323,3 @@ func main() {
         fmt.Printf("%sError starting server: %s%s\n", Red, err, Reset)
     }
 }
-
-
-
-
